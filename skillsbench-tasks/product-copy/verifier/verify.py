@@ -16,8 +16,7 @@ OUT = os.path.join(WS, 'output.md')
 INP = os.path.join(WS, 'input.txt')
 SCORER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scorer.py')
 
-TERMS = ['门槛层', '评分层', '上下文余量', '委派深度', '版本号',
-         '事件日志', '心跳', '回池', '认领', '重派']
+TERMS = ['云记', 'AI', '标签', '同步', '离线', '端到端加密', '艾宾浩斯', '免费', '12 元', '7 天']
 
 
 def main():

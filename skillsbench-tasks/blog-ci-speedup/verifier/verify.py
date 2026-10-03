@@ -16,8 +16,7 @@ OUT = os.path.join(WS, 'output.md')
 INP = os.path.join(WS, 'input.txt')
 SCORER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scorer.py')
 
-TERMS = ['门槛层', '评分层', '上下文余量', '委派深度', '版本号',
-         '事件日志', '心跳', '回池', '认领', '重派']
+TERMS = ['15 分钟', '4 分钟', '依赖安装', '缓存', 'pytest-xdist', '8 个进程', '网络测试', '多阶段构建', 'node_modules', '层缓存']
 
 
 def main():
