@@ -99,3 +99,29 @@ tests/
 - 修辞/高频词维度的词典是中文互联网向的，其他语言无效
 - 技术文本的"节奏"维度普遍低区分度（技术文本本来就句长均匀），区分力主要来自修辞+高频词+长句率
 - 校准锚点基于技术文档与专利文体，评散文/小说需重新定标
+
+## SkillsBench 评测（阿里魔搭 EvalScope）
+
+本仓库的 `skillsbench-tasks/de-ai-writing/` 是一个标准的 [SkillsBench](https://evalscope.readthedocs.io/zh-cn/latest/third_party/skillsbench.html) 任务包，可用 [EvalScope](https://github.com/modelscope/evalscope) 框架评测 skill 的真实增益：
+
+```bash
+pip install "evalscope[sandbox]"   # 需本地 Docker
+
+# oracle 冒烟（验证任务包与 verifier 契约，已实测 100%）
+py -c "from evalscope import TaskConfig, run_task; run_task(TaskConfig( \
+    model='dummy', datasets=['skillsbench'], limit=1, \
+    dataset_args={'skillsbench': {'extra_params': { \
+        'tasks_dir': 'skillsbench-tasks', 'task_ids': ['de-ai-writing'], \
+        'runner': 'oracle', 'skill_mode': 'no-skill'}}}}))"
+
+# 真实 agent 对比（测 skill 的 lift：分别跑 no-skill 与 with-skill 再比分数）
+#   把 skill_mode 分别设为 'no-skill' / 'with-skill'，agent_config 配置你的 agent
+```
+
+任务设计：agent 拿到一份 AI 痕迹分 76 的技术文档（`environment/workspace/input.txt`），须改写到 35 分以下，同时保留全部术语与信息量。verifier 打分构成：
+
+- 40% 输出完整（长度 0.7-1.1 倍 + 相似度 ≤0.85，防止原文照抄骗分）
+- 30% AI 痕迹分 < 35（由本仓库评分器独立副本判定）
+- 30% 术语保留 ≥ 8/10（防止过洗丢术语）
+
+三组 sanity 实测：oracle 参考改写 = 1.00；原文照抄 = 0.00（反作弊拦截）；未改写直交 = 0.00。
