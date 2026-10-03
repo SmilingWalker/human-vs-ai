@@ -52,11 +52,11 @@ def main():
         try:
             res = json.loads(r.stdout)[0]
             score = res.get('score')
-            if score is not None and score < 35:
+            if score is not None and score < 22:
                 reward += 0.3
-                notes.append(f'ai-flavor score {score} < 35')
+                notes.append(f'ai-flavor score {score} < 22')
             else:
-                notes.append(f'ai-flavor score {score} not < 35')
+                notes.append(f'ai-flavor score {score} not < 22')
         except Exception as e:
             notes.append(f'scorer error: {e}')
 
