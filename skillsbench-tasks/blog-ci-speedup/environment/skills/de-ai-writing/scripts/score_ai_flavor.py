@@ -69,7 +69,23 @@ ABSTRACT = re.compile(r'[一-龥]{1,3}感(?![一-龥])')
 REPEAT_SLOGAN = re.compile(r'(选择[^，。；]{1,8}，就是选择|让[^，。；]{1,8}，[^。；]{0,6}让[^，。；]{1,8}，[^。；]{0,6}让)')
 
 
+def strip_quoted(text):
+    """去掉 markdown 代码块（```围栏）、引用行（>开头）、表格行（|开头）与成对引号内的内容：
+    引用他人的 AI 腔原文、示例文字、被讨论的词（提及≠使用）不算自己的行文。"""
+    out, in_code = [], False
+    for ln in text.split('\n'):
+        if ln.strip().startswith('```'):
+            in_code = not in_code
+            continue
+        if in_code or ln.strip().startswith('>') or ln.strip().startswith('|'):
+            continue
+        ln = re.sub(r'[""「『][^""」』]*[""」』]', '""', ln)  # 引号内内容视为提及
+        out.append(ln)
+    return '\n'.join(out)
+
+
 def sentences(text):
+    text = strip_quoted(text)
     paras = [p.strip() for p in text.split('\n')]
     paras = [p for p in paras if p and not p.startswith('|') and not p.startswith('　')
              and '｜' not in p and not p.startswith('#') and not p.startswith('!')]
@@ -90,6 +106,7 @@ def score(path, genre='general', as_json=False):
     g = GENRES[genre]
     raw = io.open(path, encoding='utf-8', newline='').read().replace('\r\n', '\n')
     sents = sentences(raw)
+    body = strip_quoted(raw)  # 模式扫描同样豁免代码块/引用内的示例文字
     n = len(sents)
     if n < 10:
         msg = f'句子太少（{n}），不评分'
@@ -110,7 +127,7 @@ def score(path, genre='general', as_json=False):
     s2 = clamp((CV_HUMAN - cv) / (CV_HUMAN - CV_AI)) * 20
 
     # 3 修辞
-    pat_hits = [(name, m.group(0)[:24]) for name, pat in PATTERNS for m in pat.finditer(raw)]
+    pat_hits = [(name, m.group(0)[:24]) for name, pat in PATTERNS for m in pat.finditer(body)]
     pat_hits += [('句式重复排比', m.group(0)[:24]) for m in REPEAT_SLOGAN.finditer(raw)]
     tri = 0
     for s in sents:
@@ -123,13 +140,13 @@ def score(path, genre='general', as_json=False):
 
     # 4 高频词
     fw_hits = [(w, raw[max(0, m.start()-10):m.end()+10].replace('\n', ' ')[:36])
-               for w in FREQ_WORDS for m in re.finditer(w, raw)]
+               for w in FREQ_WORDS for m in re.finditer(w, body)]
     density = len(fw_hits) / (chars / 1000)
     s4 = clamp(density / 3) * 20
 
     # 5 抽象
-    ab_hits = [m.group(0) for m in ABSTRACT.finditer(raw)]
-    ab_hits += [w for w in ABSTRACT_PHRASES if w in raw]
+    ab_hits = [m.group(0) for m in ABSTRACT.finditer(body)]
+    ab_hits += [w for w in ABSTRACT_PHRASES if w in body]
     s5 = clamp((len(ab_hits) / (chars / 1000)) / 5) * 10
 
     total = s1 + s2 + s3 + s4 + s5

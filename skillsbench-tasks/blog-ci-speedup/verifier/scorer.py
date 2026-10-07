@@ -39,11 +39,20 @@ PATTERNS = [
 
 # ---------- 维度4：AI 高频词 ----------
 FREQ_WORDS = [
+    # 通用套话
     '值得注意的是', '值得关注的', '综上', '总的来说', '总而言之', '换句话说',
     '旨在', '赋能', '助力', '深耕', '抓手', '闭环', '组合拳', '方法论',
     '显著提升', '大幅提升', '全面提升', '极大地', '深入探讨', '深入理解',
     '让我们', '首先需要', '不可否认', '毋庸置疑', '众所周知', '在当今',
     '日益', '愈发',
+    # 营销腔
+    '保驾护航', '重新定义', '划时代', '立竿见影', '水到渠成', '游刃有余',
+    '不容错过', '机会难得', '效率神器', '无缝衔接', '无忧使用', '无感切换',
+    '倾力打造', '郑重承诺', '坚实基础', '强大信心', '雄厚实力', '优异体验',
+    # 公文/汇报腔
+    '丰硕成果', '攻坚克难', '令人振奋', '令人瞩目', '成效显著', '收获满满',
+    '再创佳绩', '稳步推进', '扎实推进', '圆满交付', '阶段性成果', '突破性进展',
+    '注入动力', '贡献更大力量', '砥砺前行', '凝心聚力', '更上一层楼',
 ]
 
 # ---------- 维度5：抽象堆砌（只抓营销腔伪抽象；技术名词不算） ----------
@@ -51,11 +60,32 @@ ABSTRACT_PHRASES = [
     '重要意义', '重要价值', '重要作用', '关键作用', '深远影响', '巨大潜力',
     '强大能力', '强大优势', '显著优势', '核心竞争力', '不可或缺', '无可替代',
     '卓越性能', '优异表现', '良好体验', '极致', '颠覆性',
+    '效率革命', '技术飞跃', '智慧人生', '新篇章', '护城河', '新纪元',
+    '工程智慧', '技术的胜利', '方法的胜利', '效率神器',
 ]
 ABSTRACT = re.compile(r'[一-龥]{1,3}感(?![一-龥])')
 
+# 句式重复排比（"选择X，就是选择Y"重复 / "这不仅是X，更是Y"）
+REPEAT_SLOGAN = re.compile(r'(选择[^，。；]{1,8}，就是选择|让[^，。；]{1,8}，[^。；]{0,6}让[^，。；]{1,8}，[^。；]{0,6}让)')
+
+
+def strip_quoted(text):
+    """去掉 markdown 代码块（```围栏）、引用行（>开头）、表格行（|开头）与成对引号内的内容：
+    引用他人的 AI 腔原文、示例文字、被讨论的词（提及≠使用）不算自己的行文。"""
+    out, in_code = [], False
+    for ln in text.split('\n'):
+        if ln.strip().startswith('```'):
+            in_code = not in_code
+            continue
+        if in_code or ln.strip().startswith('>') or ln.strip().startswith('|'):
+            continue
+        ln = re.sub(r'[""「『][^""」』]*[""」』]', '""', ln)  # 引号内内容视为提及
+        out.append(ln)
+    return '\n'.join(out)
+
 
 def sentences(text):
+    text = strip_quoted(text)
     paras = [p.strip() for p in text.split('\n')]
     paras = [p for p in paras if p and not p.startswith('|') and not p.startswith('　')
              and '｜' not in p and not p.startswith('#') and not p.startswith('!')]
@@ -76,6 +106,7 @@ def score(path, genre='general', as_json=False):
     g = GENRES[genre]
     raw = io.open(path, encoding='utf-8', newline='').read().replace('\r\n', '\n')
     sents = sentences(raw)
+    body = strip_quoted(raw)  # 模式扫描同样豁免代码块/引用内的示例文字
     n = len(sents)
     if n < 10:
         msg = f'句子太少（{n}），不评分'
@@ -96,7 +127,8 @@ def score(path, genre='general', as_json=False):
     s2 = clamp((CV_HUMAN - cv) / (CV_HUMAN - CV_AI)) * 20
 
     # 3 修辞
-    pat_hits = [(name, m.group(0)[:24]) for name, pat in PATTERNS for m in pat.finditer(raw)]
+    pat_hits = [(name, m.group(0)[:24]) for name, pat in PATTERNS for m in pat.finditer(body)]
+    pat_hits += [('句式重复排比', m.group(0)[:24]) for m in REPEAT_SLOGAN.finditer(raw)]
     tri = 0
     for s in sents:
         if '=' in s or re.fullmatch(r'[（(【\d.,，/＋＋\-×·^]+', s):
@@ -108,13 +140,13 @@ def score(path, genre='general', as_json=False):
 
     # 4 高频词
     fw_hits = [(w, raw[max(0, m.start()-10):m.end()+10].replace('\n', ' ')[:36])
-               for w in FREQ_WORDS for m in re.finditer(w, raw)]
+               for w in FREQ_WORDS for m in re.finditer(w, body)]
     density = len(fw_hits) / (chars / 1000)
     s4 = clamp(density / 3) * 20
 
     # 5 抽象
-    ab_hits = [m.group(0) for m in ABSTRACT.finditer(raw)]
-    ab_hits += [w for w in ABSTRACT_PHRASES if w in raw]
+    ab_hits = [m.group(0) for m in ABSTRACT.finditer(body)]
+    ab_hits += [w for w in ABSTRACT_PHRASES if w in body]
     s5 = clamp((len(ab_hits) / (chars / 1000)) / 5) * 10
 
     total = s1 + s2 + s3 + s4 + s5
